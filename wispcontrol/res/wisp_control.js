@@ -62,7 +62,7 @@ function message(text, error = false) {
 function setBusy(value) {
   busy = value;
   byId('wisp-control').querySelectorAll('button,input,select').forEach(control => { control.disabled = value; });
-  byId('enable').disabled = value || !currentStatus;
+  byId('enable').disabled = value || !currentStatus?.ssidHex;
   byId('enable').textContent = currentStatus?.enabled ? '重新连接当前 Wi-Fi 并重启' : '启用 WISP 并重启';
   byId('disable').disabled = value || !currentStatus || !currentStatus.enabled;
   byId('previous').disabled = value || !currentStatus?.previousHex;
@@ -70,7 +70,7 @@ function setBusy(value) {
 
 const ERROR_TEXT = {
   ambiguous_config:'检测到两套 WISP 配置，请先确认开机脚本使用的目录。',
-  missing_config:'路由器缺少已有 WISP 配置，请先检查配置文件。',
+  missing_config:'请先扫描或填写上级 Wi-Fi，保存第一份配置。',
   router_mode:'请将华硕保持在“无线路由器模式”。',
   status_failed:'无法读取无线状态，请稍后刷新。', invalid_action:'操作参数无效，请刷新页面。',
   busy:'另一个操作尚未结束，请稍后重试。', reboot_pending:'已提交重启，请等待路由器重新启动。',
@@ -107,7 +107,7 @@ async function refresh() {
   const result = await api(['status']);
   if (result.kind !== 'status') throw new Error('路由器没有返回有效状态。');
   currentStatus = JSON.parse(decodePayload(result.payload));
-  byId('enabled').textContent = currentStatus.enabled ? '已启用' : '已停用';
+  byId('enabled').textContent = !currentStatus.ssidHex ? '等待首次配置' : currentStatus.enabled ? '已启用' : '已停用';
   byId('current-ssid').textContent = fromHex(currentStatus.ssidHex) || '未配置';
   byId('previous-ssid').textContent = fromHex(currentStatus.previousHex) || '暂无（首次更换后保留）';
   byId('address').textContent = currentStatus.ip || '尚未获取';
@@ -177,7 +177,7 @@ function initialize() {
   byId('disable').onclick = () => run(() => apply(['disable'], '停用 WISP，恢复普通路由器使用。此后需要 WAN 口接入上网线路；已保存的 Wi-Fi 不会删除。'));
   byId('enable').onclick = () => run(() => apply(['enable'], '启用 WISP，连接已保存的上级 Wi-Fi。'));
   setBusy(false);
-  run(async () => { await refresh(); if (!currentStatus.pending) message('状态已更新，当前配置未更改。'); });
+  run(async () => { await refresh(); if (!currentStatus.pending) message(currentStatus.ssidHex ? '状态已更新，当前配置未更改。' : '首次使用请扫描或填写上级 Wi-Fi，再保存并重启连接。'); });
   setInterval(() => { if (!busy) run(refresh); }, WISP_REFRESH_MS);
 }
 

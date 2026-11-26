@@ -3,13 +3,16 @@ PROFILE_FILES='wpa.conf wpa.previous.conf disabled'
 
 select_wisp_paths() {
     SAVED=/jffs/wispcontrol
-    RUNTIME=/tmp/wispcontrol
+    # 软件中心会在离线安装结束时清理 /tmp/模块名。
+    RUNTIME=/tmp/wispcontrol-run
     # 旧版开机钩子仍引用原目录和控制套接字，升级时须与它共享配置、锁和待重启标记。
     legacy=/jffs/codex-wisp
     if [ -d "$legacy" ]; then
         if [ -e "$SAVED" ] && ! [ "$SAVED" -ef "$legacy" ]; then return 1; fi
         SAVED=$legacy
         RUNTIME=/tmp/${legacy##*/}-test
+    elif [ -x "$SAVED/restore.sh" ]; then
+        RUNTIME=/tmp/wispcontrol
     fi
     CONTROL_PREFIX=/tmp/${SAVED##*/}
     PENDING_FILE=$CONTROL_PREFIX-reboot-pending
@@ -75,7 +78,9 @@ rollback_config() {
 apply_config() {
     action=$1
     if [ "$action" = connect ] || [ "$action" = previous ]; then
-        cp -p "$SAVED/wpa.conf" "$SAVED/wpa.previous.conf" || return 1
+        if [ -s "$SAVED/wpa.conf" ]; then
+            cp -p "$SAVED/wpa.conf" "$SAVED/wpa.previous.conf" || return 1
+        fi
         cp -p "$TXN/candidate" "$SAVED/wpa.conf" || return 1
     fi
     if [ "$action" = disable ]; then
@@ -93,18 +98,20 @@ apply_config() {
 
 status_json() {
     enabled=true
-    [ ! -e "$SAVED/disabled" ] || enabled=false
+    [ -s "$SAVED/wpa.conf" ] && [ ! -e "$SAVED/disabled" ] || enabled=false
     state=STOPPED
     ip_addr=
     freq=
     has_route=false
     set -- /sys/class/net/wisp_sta*
-    if [ "$#" -eq 1 ] && [ -e "$1" ]; then
+    if [ -s "$SAVED/wpa.conf" ] && [ "$#" -eq 1 ] && [ -e "$1" ] && [ -d "$RUNTIME/ctrl" ]; then
         status=$(/usr/bin/wpa_cli -p "$RUNTIME/ctrl" -i "${1##*/}" status) || return 1
         state=$(printf '%s\n' "$status" | sed -n 's/^wpa_state=//p')
         ip_addr=$(printf '%s\n' "$status" | sed -n 's/^ip_address=//p')
         freq=$(printf '%s\n' "$status" | sed -n 's/^freq=//p')
         ip route show default | grep -q " dev ${1##*/} " && has_route=true
+    elif [ "$enabled" = true ] && [ "$#" -eq 1 ] && [ -e "$1" ]; then
+        state=STARTING
     fi
     pending=false
     [ ! -e "$PENDING_FILE" ] || pending=true

@@ -10,11 +10,11 @@ reject() { respond "error|$1"; exit 1; }
 encode() { base64 | tr -d '\n'; }
 
 select_wisp_paths || reject ambiguous_config
-[ -s "$SAVED/wpa.conf" ] || reject missing_config
 [ "$(nvram get sw_mode)" = 1 ] || reject router_mode
 case "${2:-}" in
     status) data=$(status_json) || reject status_failed; respond "status|$(printf '%s' "$data" | encode)"; exit;;
-    scan|connect|previous|enable|disable) ;;
+    scan|connect) ;;
+    previous|enable|disable) [ -s "$SAVED/wpa.conf" ] || reject missing_config;;
     *) reject invalid_action;;
 esac
 exec 9>"$CONTROL_PREFIX-control.lock"
@@ -31,7 +31,7 @@ cleanup() {
 }
 
 scan_networks() {
-    timeout -t 25 iw dev ath0 scan > "$TXN/scan.txt" 2> "$TXN/scan.error" || return 1
+    timeout -t 25 iw dev ath0 scan > "$TXN/scan.txt" 2> "$TXN/scan.error" 9>&- || return 1
     respond "scan|$(encode < "$TXN/scan.txt")"
 }
 
@@ -51,7 +51,7 @@ if [ "$2" = scan ]; then
     cleanup
     exit 0
 fi
-[ "$(nvram get lan_ipaddr)" = 192.168.50.1 ] || { cleanup; reject lan_changed; }
+[ "$(nvram get lan_ipaddr)/$(nvram get lan_netmask)" = 192.168.50.1/255.255.255.0 ] || { cleanup; reject lan_changed; }
 ACTION_NAME=$2
 SSID_HEX=${3:-}
 KEY_HEX=${4:-}

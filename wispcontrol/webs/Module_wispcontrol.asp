@@ -49,7 +49,7 @@ window.addEventListener('load', function () {
 #wisp-control #message {position:sticky;top:0;z-index:2;background:#000;padding:6px 10px;white-space:pre-line}
 #wisp-control #message.error {color:#ffb4ab}
 </style>
-<script type="module" src="/res/wisp_control.js?v=0.0.1"></script>
+<script type="module" src="/res/wisp_control.js?v=0.0.1&amp;bundle=full"></script>
 </head>
 <body id="app" skin="ASUSWRT">
 <div id="TopBanner"></div>
